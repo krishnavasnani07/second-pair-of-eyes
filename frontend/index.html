@@ -1,184 +1,454 @@
 <!DOCTYPE html>
 <html>
-<head>
-<title>Second Pair of Eyes – Live Agent</title>
+   <head>
+      <title>Second Pair of Eyes – Live Agent</title>
+      <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+      <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+      <style>
+         body{
+         font-family:Arial;
+         background:#0f172a;
+         color:white;
+         text-align:center;
+         margin:0;
+         }
+         .container{
+         max-width:1100px;
+         margin:auto;
+         padding:30px;
+         }
+         .video-container{
+         position:relative;
+         display:flex;
+         justify-content:center;
+         margin-top:20px;
+         }
+         video{
+         width:850px;
+         border-radius:12px;
+         border:4px solid #1e293b;
+         }
+         canvas{
+         position:absolute;
+         top:0;
+         }
+         .dashboard{
+         display:flex;
+         justify-content:center;
+         gap:20px;
+         margin-top:20px;
+         flex-wrap:wrap;
+         }
+         .card{
+         background:#1e293b;
+         padding:15px 25px;
+         border-radius:10px;
+         min-width:180px;
+         }
+         .timeline{
+         margin-top:20px;
+         background:#111827;
+         padding:15px;
+         border-radius:10px;
+         text-align:left;
+         max-width:800px;
+         margin-left:auto;
+         margin-right:auto;
+         }
+         button{
+         padding:12px 22px;
+         font-size:16px;
+         border:none;
+         border-radius:8px;
+         margin:10px;
+         cursor:pointer;
+         }
+         #start{background:#22c55e;color:white;}
+         #stop{background:#ef4444;color:white;}
+         .status{
+         margin-top:20px;
+         font-size:18px;
+         font-weight:bold;
+         padding:12px;
+         border-radius:8px;
+         background:#1e293b;
+         }
+         .interrupt{
+         background:#dc2626;
+         }
+      </style>
+   </head>
+   <body>
+      <div class="container">
+         <h1>Second Pair of Eyes – Live Agent</h1>
+         <div class="video-container">
+            <video id="cam" autoplay playsinline></video>
+            <canvas id="overlay"></canvas>
+         </div>
+         <div class="dashboard">
+            <div class="card">
+               <h3>AI Status</h3>
+               <p id="aiState">Observing...</p>
+            </div>
+            <div class="card">
+               <h3>Risk Level</h3>
+               <p id="riskPanel">LOW</p>
+            </div>
+            <div class="card">
+               <h3>Detected Objects</h3>
+               <p id="objectPanel">None</p>
+            </div>
+         </div>
+         <div class="timeline">
+            <h3>Event Timeline</h3>
+            <div id="timeline"></div>
+         </div>
+         <div style="margin-top:25px">
+            <button id="start">Start Agent</button>
+            <button id="stop">Stop</button>
+         </div>
+         <div id="status" class="status">
+            Agent: Observing...
+         </div>
+      </div>
+      <script>
+         const dangerousObjects=["knife","scissors","fire","fork"]
+         
+         let ws
+         let recorder
+         let camStream
+         
+         let model
+         let faceMesh
+         let hands
+         
+         let lastSeenTime=Date.now()
+         let distractionThreshold=10000
+         
+         let lastSpeech=0
+         let timeline=[]
+         
+         const video=document.getElementById("cam")
+         const canvas=document.getElementById("overlay")
+         const ctx=canvas.getContext("2d")
+         
+         const riskPanel=document.getElementById("riskPanel")
+         const timelinePanel=document.getElementById("timeline")
+         const objectPanel=document.getElementById("objectPanel")
+         const aiState=document.getElementById("aiState")
+         const status=document.getElementById("status")
+         
+         function speak(text){
+         
+         let now=Date.now()
+         
+         if(now-lastSpeech<3000) return
+         
+         lastSpeech=now
+         
+         const speech=new SpeechSynthesisUtterance(text)
+         speech.rate=1
+         speech.pitch=1
+         
+         speechSynthesis.speak(speech)
+         
+         }
+         
+         function logEvent(text){
+         
+         timeline.push(text)
+         
+         if(timeline.length>6) timeline.shift()
+         
+         timelinePanel.innerHTML=timeline.join("<br>")
+         
+         }
+         
+         function calculateRisk(objects){
+         
+         let score=0
+         
+         if(objects.includes("knife")) score+=5
+         if(objects.includes("scissors")) score+=4
+         if(objects.includes("fire")) score+=6
+         if(objects.includes("hand")) score+=2
+         
+         if(score>=7) return "HIGH"
+         if(score>=4) return "MEDIUM"
+         
+         return "LOW"
+         
+         }
+         
+         function predictAccident(objects){
+         
+         if(objects.includes("knife") && objects.includes("person")){
+         status.innerText="⚠ Prediction: Hand too close to knife"
+         status.classList.add("interrupt")
+         speak("Warning. Your hand is too close to a knife.")
+         logEvent("⚠ Accident risk: knife near hand")
+         }
+         
+         if(objects.includes("scissors") && objects.includes("person")){
+         status.innerText="⚠ Prediction: Scissors near face"
+         status.classList.add("interrupt")
+         speak("Sharp object close to face.")
+         logEvent("⚠ Accident risk: scissors near face")
+         }
 
-<style>
+         if(objects.includes("phone") && objects.includes("person")){
+         speak("Using phone while distracted may cause accidents.")
+         logEvent("⚠ Distraction risk detected")
+         }
 
-body{
-    font-family: Arial, sans-serif;
-    background:#0f172a;
-    color:white;
-    text-align:center;
-    margin:0;
-}
-
-.container{
-    max-width:900px;
-    margin:auto;
-    padding:30px;
-}
-
-h1{
-    font-size:32px;
-    margin-bottom:20px;
-}
-
-.video-container{
-    display:flex;
-    justify-content:center;
-    margin-bottom:20px;
-}
-
-video{
-    width:640px;
-    height:480px;
-    border-radius:12px;
-    border:4px solid #1e293b;
-    box-shadow:0 10px 25px rgba(0,0,0,0.4);
-}
-
-.controls{
-    margin-top:20px;
-}
-
-button{
-    padding:12px 22px;
-    font-size:16px;
-    border:none;
-    border-radius:8px;
-    margin:10px;
-    cursor:pointer;
-}
-
-#start{
-    background:#22c55e;
-    color:white;
-}
-
-#stop{
-    background:#ef4444;
-    color:white;
-}
-
-.status{
-    margin-top:20px;
-    font-size:20px;
-    font-weight:bold;
-    padding:12px;
-    border-radius:8px;
-    background:#1e293b;
-}
-
-.interrupt{
-    background:#dc2626;
-}
-
-</style>
-
-</head>
-
-<body>
-
-<div class="container">
-
-<h1>Second Pair of Eyes – Live Agent</h1>
-
-<div class="video-container">
-<video id="cam" autoplay playsinline></video>
-</div>
-
-<div class="controls">
-<button id="start">Start Talking</button>
-<button id="stop">Stop</button>
-</div>
-
-<div id="status" class="status">
-Agent: Observing...
-</div>
-
-</div>
-
-<script>
-
-let ws;
-let recorder;
-let camStream;
-
-const video = document.getElementById("cam");
-const status = document.getElementById("status");
-
-
-async function startCamera(){
-
-    camStream = await navigator.mediaDevices.getUserMedia({
-        video:true,
-        audio:true
-    });
-
-    video.srcObject = camStream;
-
-}
-
-
-document.getElementById("start").onclick = async ()=>{
-
-    status.innerText = "Connecting to AI agent...";
-
-    ws = new WebSocket("ws://127.0.0.1:8000/voice");
-
-    ws.binaryType = "arraybuffer";
-
-    ws.onmessage = (event)=>{
-
-        if(event.data==="INTERRUPT"){
-            status.innerText="⚠️ AI Interrupting...";
-            status.classList.add("interrupt");
-            return;
-        }
-
-        status.innerText="Agent: "+event.data;
-        status.classList.remove("interrupt");
-
-    };
-
-
-    ws.onopen = async ()=>{
-
-        await startCamera();
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio:true
-        });
-
-        recorder = new MediaRecorder(stream);
-
-        recorder.ondataavailable=(e)=>{
-
-            if(ws.readyState===WebSocket.OPEN){
-                ws.send(e.data);
-            }
-
-        };
-
-        recorder.start(300);
-
-    };
-
-};
-
-
-document.getElementById("stop").onclick=()=>{
-
-    if(recorder) recorder.stop();
-    if(ws) ws.close();
-
-    status.innerText="Agent stopped.";
-
-};
-
-
-</script>
-
-</body>
+         if(objects.includes("fire") && objects.includes("paper")){
+         speak("Paper near fire detected. Fire hazard.")
+         logEvent("⚠ Fire hazard")
+         }
+         
+         }
+         
+         async function startCamera(){
+         
+         camStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true})
+         
+         video.srcObject=camStream
+         
+         video.onloadedmetadata=()=>{
+         
+         canvas.width=video.videoWidth
+         canvas.height=video.videoHeight
+         
+         }
+         
+         }
+         
+         async function loadModel(){
+         model=await cocoSsd.load()
+         }
+         
+         function drawDangerBox(bbox,label){
+         
+         ctx.strokeStyle="red"
+         ctx.lineWidth=4
+         ctx.strokeRect(bbox[0],bbox[1],bbox[2],bbox[3])
+         
+         ctx.fillStyle="red"
+         ctx.font="20px Arial"
+         ctx.fillText("⚠ "+label,bbox[0],bbox[1]-8)
+         
+         }
+         
+         async function detectObjects(){
+         
+         if(!model) return
+         
+         const predictions=await model.detect(video)
+         
+         ctx.clearRect(0,0,canvas.width,canvas.height)
+         
+         let objects=[]
+         
+         predictions.forEach(p=>{
+         
+         if(p.score>0.6){
+         
+         objects.push(p.class)
+         
+         if(dangerousObjects.includes(p.class)){
+         
+         drawDangerBox(p.bbox,p.class)
+         
+         }
+         
+         }
+         
+         })
+         
+         objectPanel.innerText=objects.join(", ")||"None"
+         
+         let risk=calculateRisk(objects)
+         
+         riskPanel.innerText=risk
+         
+         if(risk==="HIGH"){
+         speak("High risk detected")
+         }
+         
+         predictAccident(objects)
+         
+         if(objects.length>0){
+         logEvent("Detected: "+objects.join(", "))
+         }
+         
+         if(ws && ws.readyState===WebSocket.OPEN){
+         
+         ws.send(JSON.stringify({
+         type:"objects",
+         data:objects,
+         risk:risk
+         }))
+         
+         }
+         
+         }
+         
+         async function initAttentionMonitor(){
+         
+         faceMesh=new FaceMesh({
+         locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+         })
+         
+         faceMesh.setOptions({
+         maxNumFaces:1,
+         refineLandmarks:true,
+         minDetectionConfidence:0.5,
+         minTrackingConfidence:0.5
+         })
+         
+         faceMesh.onResults(results=>{
+         if(results.multiFaceLandmarks && results.multiFaceLandmarks.length>0){
+         lastSeenTime=Date.now()
+         }
+         })
+         
+         }
+         
+         function checkAttention(){
+         
+         let now=Date.now()
+         
+         if(now-lastSeenTime>distractionThreshold){
+         
+         status.innerText="⚠ You seem distracted"
+         status.classList.add("interrupt")
+         
+         }
+         
+         }
+         
+         async function initEmotion(){
+         
+         await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models')
+         await faceapi.nets.faceExpressionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models')
+         
+         }
+         
+         async function detectEmotion(){
+         
+         const result=await faceapi
+         .detectSingleFace(video,new faceapi.TinyFaceDetectorOptions())
+         .withFaceExpressions()
+         
+         if(!result) return
+         
+         let emotion=Object.entries(result.expressions)
+         .sort((a,b)=>b[1]-a[1])[0][0]
+         
+         if(emotion==="sad"){
+         speak("You look stressed")
+         logEvent("Emotion detected: stress")
+         }
+         
+         }
+         
+         async function initHands(){
+         
+         hands=new Hands({
+         locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+         })
+         
+         hands.setOptions({
+         maxNumHands:2,
+         minDetectionConfidence:0.7
+         })
+         
+         hands.onResults(results=>{
+         if(results.multiHandLandmarks && results.multiHandLandmarks.length>0){
+         logEvent("Hand movement detected")
+         }
+         })
+         
+         }
+         
+         setInterval(async()=>{
+         if(hands) await hands.send({image:video})
+         },700)
+         
+         function runFaceTracking(){
+         
+         setInterval(async()=>{
+         if(faceMesh){
+         await faceMesh.send({image:video})
+         }
+         },500)
+         
+         }
+         
+         document.getElementById("start").onclick=async()=>{
+         
+         status.innerText="Connecting..."
+         
+         ws=new WebSocket("ws://127.0.0.1:8000/voice")
+         
+         ws.onmessage=(event)=>{
+         
+         if(event.data==="INTERRUPT"){
+         status.innerText="⚠ AI Interrupting"
+         status.classList.add("interrupt")
+         return
+         }
+         
+         aiState.innerText=event.data
+         status.classList.remove("interrupt")
+         
+         }
+         
+         ws.onopen=async()=>{
+         
+         aiState.innerText="Agent Connected"
+         
+         await startCamera()
+         await loadModel()
+         await initEmotion()
+         await initHands()
+         await initAttentionMonitor()
+         
+         runFaceTracking()
+         
+         setInterval(detectObjects,1000)
+         setInterval(checkAttention,2000)
+         setInterval(detectEmotion,3000)
+         
+         const stream=await navigator.mediaDevices.getUserMedia({audio:true})
+         
+         recorder=new MediaRecorder(stream)
+         
+         recorder.ondataavailable=(e)=>{
+         if(ws.readyState===WebSocket.OPEN){
+         ws.send(e.data)
+         }
+         }
+         
+         recorder.start(300)
+         
+         }
+         
+         }
+         
+         document.getElementById("stop").onclick=()=>{
+         
+         if(recorder) recorder.stop()
+         if(ws) ws.close()
+         
+         status.innerText="Agent stopped"
+         
+         }
+         
+      </script>
+   </body>
 </html>

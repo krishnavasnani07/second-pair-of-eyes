@@ -2,7 +2,8 @@ from fastapi import FastAPI, WebSocket
 import asyncio
 import random
 import time
-
+import json
+from gemini_agent import analyze_risk
 from memory import store_event, should_interrupt_with_context
 from vision_agent import analyze_image
 
@@ -30,6 +31,26 @@ async def voice_agent(ws: WebSocket):
 
             data = await ws.receive()
 
+            # -------- OBJECT DETECTION DATA FROM FRONTEND --------
+            
+            if "text" in data:
+
+                message = json.loads(data["text"])
+
+                if message.get("type") == "objects":
+
+                    objects = message.get("data", [])
+
+                    print("Objects detected:", objects)
+
+                    if objects:
+                        explanation = await asyncio.to_thread(analyze_risk, objects)
+                        await ws.send_text(explanation)
+
+                    continue
+            
+
+            # -------- IMAGE ANALYSIS --------
             if "bytes" in data:
 
                 image_bytes = data["bytes"]
