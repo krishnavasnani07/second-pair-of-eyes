@@ -1,107 +1,154 @@
-# 👁️ Second Pair of Eyes – Real-Time AI Safety Agent
+# Second Pair of Eyes – AI Safety Agent
 
-Second Pair of Eyes is a **multimodal AI assistant** that watches, listens, and interrupts when a user might make a mistake.
-It acts like a **real-time mentor or safety companion**, providing an additional layer of awareness while performing tasks.
+Second Pair of Eyes is a real-time AI safety assistant that observes the environment through a camera and warns users about potential hazards before accidents occur.
 
-This project was built for the **Gemini Live Agent Challenge**.
-
----
-
-# 🚀 Project Overview
-
-People often make small mistakes while learning or performing tasks.
-Second Pair of Eyes acts as an **AI co-pilot**, analyzing **video input, speech, and context** to detect potential risks and warn the user instantly.
-
-The AI observes the environment and can interrupt when it detects:
-
-* skipped steps
-* potential errors
-* unsafe actions
-* user hesitation
-
-Example scenarios:
-
-* 🔧 assembling electronics
-* 🍳 cooking recipes
-* 📚 solving homework
-* 🧪 performing lab experiments
-* 🛠 following repair tutorials
+The system analyzes visual context, detects objects, evaluates risk levels, and alerts users about unsafe situations.
 
 ---
 
-# ✨ Key Features
+## Problem
 
-### 🎥 Real-Time Camera Monitoring
+Many accidents occur because people are distracted or unaware of hazards around them. Existing monitoring systems detect problems after they happen.
 
-The AI observes the user through the camera and analyzes visual input.
-
-### 🎤 Voice Interaction
-
-Users can speak naturally while the AI listens.
-
-### ⚡ Live AI Interruptions
-
-The AI can interrupt in real time if it detects potential mistakes.
-
-### 🧠 Context Memory
-
-The system remembers recent user actions and conversations to provide smarter feedback.
-
-### 🔄 WebSocket Communication
-
-Real-time interaction between the browser and backend.
+Second Pair of Eyes focuses on **preventing accidents before they occur**.
 
 ---
 
-# 🧠 AI Architecture
+## Solution
 
-Second Pair of Eyes uses a **multimodal agent architecture**.
+This project creates a real-time AI observer that acts like an intelligent assistant watching your surroundings and providing safety alerts.
 
-User Camera + Microphone
-↓
-Frontend (HTML + JavaScript)
-↓
-WebSocket Communication
-↓
-FastAPI Backend
-↓
-Memory System + Vision Analysis + Speech Processing
-↓
-Gemini AI Decision Engine
-↓
-Real-Time AI Interruptions
+The system detects objects using computer vision and predicts potential dangers such as:
+
+- Sharp objects near the body
+- Phone distraction
+- Dangerous objects in proximity
+- Unsafe environment conditions
 
 ---
 
-# 🛠 Tech Stack
+## Features
 
-### Backend
+- Real-time object detection using TensorFlow.js
+- AI risk evaluation system
+- Accident prediction alerts
+- Voice warnings for hazardous situations
+- Visual bounding box detection
+- Risk level indicator (Low / Medium / High)
+- Event timeline for safety monitoring
+- WebSocket communication with backend AI agent
 
-* Python
-* FastAPI
-* WebSockets
+---
+
+## Architecture
+
+The project consists of two main components:
 
 ### Frontend
+- Camera capture
+- Object detection
+- Risk visualization
+- User alerts
 
-* HTML
-* JavaScript
-* MediaRecorder API
-
-### AI
-
-* Google Gemini
-* Multimodal analysis
-
-### Development Tools
-
-* VS Code
-* Git
-* GitHub
+### Backend
+- AI reasoning agent
+- Context memory
+- Risk analysis
+- WebSocket communication
 
 ---
 
-# 📂 Project Structure
+## Tech Stack
 
-```
+### Frontend
+- HTML
+- CSS
+- JavaScript
+- TensorFlow.js
+- COCO-SSD object detection
+
+### Backend
+- Python
+- FastAPI
+- WebSockets
+
+---
+
+## Project Structure
 second-pair-of-eyes
-```
+│
+├── backend
+│ ├── main.py
+│ ├── gemini_agent.py
+│ ├── memory.py
+│ └── requirements.txt
+│
+├── frontend
+│ └── index.html
+│
+├── architecture
+│ └── diagram.png
+│
+└── README.md
+## How to Run
+
+### 1 Install backend dependencies
+
+
+pip install -r backend/requirements.txt
+
+
+### 2 Start backend server
+
+
+uvicorn main:app --reload
+
+
+### 3 Open frontend
+
+Open the file:
+
+
+frontend/index.html
+
+
+in your browser.
+
+---
+
+## Example Use Cases
+
+- Detecting sharp objects near users
+- Alerting users when distracted by phones
+- Preventing unsafe actions in workspaces
+- Safety monitoring in workshops or labs
+
+---
+
+## Future Improvements
+
+- YOLOv8 object detection for higher accuracy
+- Edge AI acceleration
+- Multi-camera monitoring
+- Predictive hazard detection using spatial analysis
+- Mobile deployment
+
+---
+
+## Inspiration
+
+The idea behind Second Pair of Eyes is to create an AI assistant that proactively protects users by continuously analyzing the surrounding environment.
+
+---
+
+## Authors
+
+Krishna Vasnani  
+B.Tech Computer Science Engineering  
+JECRC University
+
+Save and exit:
+
+CTRL + X
+Y
+ENTER
