@@ -1,186 +1,677 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Second Pair of Eyes – AI Safety Agent</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-body{
-font-family:Arial;
-background:#0f172a;
-color:white;
-text-align:center;
-margin:0;
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --green:#00ffb4;--red:#ff4444;--amber:#f59e0b;
+  --bg:#080d16;--surface:#0e1623;--surface2:#131f30;
+  --border:rgba(0,255,180,0.12);--text:#e2e8f0;--muted:#4a6080;
 }
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';pointer-events:none;position:fixed;inset:0;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,180,0.006) 2px,rgba(0,255,180,0.006) 4px);}
 
-.container{
-max-width:1100px;
-margin:auto;
-padding:30px;
-}
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;
+  border-bottom:1px solid var(--border);background:rgba(8,13,22,0.97);backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:100;}
+.logo{font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--green);
+  letter-spacing:2px;text-shadow:0 0 20px rgba(0,255,180,0.4);display:flex;align-items:center;gap:10px;}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:background .3s;}
+.logo-dot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.5s ease infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.badges{display:flex;gap:8px;}
+.badge{font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:4px 10px;border-radius:20px;
+  letter-spacing:1px;border:1px solid;text-transform:uppercase;}
+.badge-g{color:var(--green);border-color:rgba(0,255,180,0.3);background:rgba(0,255,180,0.06);}
+.badge-c{color:#60a5fa;border-color:rgba(96,165,250,0.3);background:rgba(96,165,250,0.06);}
+#liveWrap{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--muted);}
 
-.video-container{
-position:relative;
-display:flex;
-justify-content:center;
-margin-top:20px;
-}
+/* LAYOUT */
+.app{display:grid;grid-template-columns:1fr 340px;height:calc(100vh - 53px);}
 
-video{
-width:640px;
-border-radius:12px;
-border:4px solid #1e293b;
-}
+/* LEFT */
+.left{padding:18px 14px 18px 22px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
+.vid-wrap{position:relative;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);
+  background:#000;box-shadow:0 0 50px rgba(0,255,180,0.05);flex-shrink:0;}
+video{display:block;width:100%;max-height:400px;object-fit:cover;}
+canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
+  padding:10px 12px;pointer-events:none;}
+.chip{font-family:'JetBrains Mono',monospace;font-size:.6rem;background:rgba(8,13,22,0.8);
+  backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:5px;
+  padding:3px 8px;color:rgba(0,255,180,0.7);letter-spacing:1px;}
 
-canvas{
-position:absolute;
-top:0;
-}
+/* STATUS */
+#statusBar{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:8px;
+  background:var(--surface);border:1px solid var(--border);font-size:.85rem;font-weight:500;
+  letter-spacing:.5px;transition:all .3s;}
+#statusBar.alert{background:rgba(127,29,29,0.7);border-color:var(--red);color:#fca5a5;
+  animation:alertP 1s ease infinite alternate;}
+@keyframes alertP{from{box-shadow:none}to{box-shadow:0 0 18px rgba(255,68,68,.3)}}
 
-button{
-padding:12px 22px;
-font-size:16px;
-border:none;
-border-radius:8px;
-margin:10px;
-cursor:pointer;
-}
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;transition:all .3s;}
+.metric label{font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px;}
+.metric .val{font-family:'JetBrains Mono',monospace;font-size:.9rem;color:var(--green);font-weight:700;}
+.metric.high{border-color:var(--red);box-shadow:0 0 12px rgba(255,68,68,.15);}
+.metric.high .val{color:var(--red);}
+.metric.med{border-color:var(--amber);}
+.metric.med .val{color:var(--amber);}
 
-#start{background:#22c55e;color:white;}
-#stop{background:#ef4444;color:white;}
+/* TIMELINE */
+.tl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:10px 12px;flex:1;min-height:100px;overflow-y:auto;}
+.tl-wrap h4{font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.tl-entry{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);
+  padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;gap:8px;}
+.tl-entry .ts{color:#2a4060;flex-shrink:0;}
+.tl-entry.danger .msg{color:#fca5a5;}
+.tl-entry.gemini .msg{color:rgba(0,255,180,0.6);}
 
-.status{
-margin-top:20px;
-font-size:18px;
-font-weight:bold;
-padding:12px;
-border-radius:8px;
-background:#1e293b;
+/* RIGHT */
+.right{border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;overflow:hidden;}
+.sec{padding:14px 16px;border-bottom:1px solid var(--border);}
+.sec h4{font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+
+/* GEMINI */
+.g-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.g-head h4{margin-bottom:0;}
+.g-tag{font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);
+  background:var(--surface2);padding:2px 7px;border-radius:4px;}
+#geminiText{font-size:.88rem;line-height:1.6;color:#a5f3d0;min-height:55px;white-space:pre-wrap;}
+.thinking{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.8rem;}
+.dots span{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--green);
+  margin:0 2px;animation:dot 1.2s ease infinite;}
+.dots span:nth-child(2){animation-delay:.2s;}
+.dots span:nth-child(3){animation-delay:.4s;}
+@keyframes dot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+/* THREATS */
+.threat-item{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border-radius:7px;padding:7px 10px;border:1px solid rgba(255,68,68,0.2);margin-bottom:5px;}
+.t-name{font-family:'JetBrains Mono',monospace;font-size:.78rem;color:#fca5a5;}
+.t-dist{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--red);}
+.no-t{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--muted);text-align:center;padding:10px 0;}
+
+/* CONTROLS */
+.ctrl{padding:14px 16px;margin-top:auto;}
+.btn{width:100%;padding:11px;border:none;border-radius:9px;font-family:'Inter',sans-serif;
+  font-weight:700;font-size:.88rem;letter-spacing:1px;cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:7px;}
+.btn:active{transform:scale(.98);}
+.btn-start{background:var(--green);color:#080d16;}
+.btn-start:hover{box-shadow:0 0 18px rgba(0,255,180,0.3);}
+.btn-stop{background:transparent;color:var(--red);border:1px solid rgba(255,68,68,0.3);}
+.btn-stop:hover{background:rgba(255,68,68,0.08);}
+.btn-voice{background:var(--surface2);color:var(--text);border:1px solid var(--border);font-size:.8rem;}
+
+/* ABOUT */
+.about{padding:10px 16px;border-top:1px solid var(--border);font-size:.68rem;color:var(--muted);line-height:1.6;}
+.about strong{color:rgba(0,255,180,0.5);}
+
+/* RESPONSIVE */
+@media(max-width:860px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;}
+  .right{border-left:none;border-top:1px solid var(--border);}
+  .metrics{grid-template-columns:repeat(2,1fr);}
 }
 </style>
-
 </head>
-
 <body>
 
-<div class="container">
+<header>
+  <div class="logo">
+    <div class="logo-dot" id="liveDot"></div>
+    ⟁ SECOND PAIR OF EYES
+  </div>
+  <div class="badges">
+    <span class="badge badge-g">GEMINI AI</span>
+    <span class="badge badge-c">GOOGLE CLOUD</span>
+  </div>
+  <div id="liveWrap">
+    <div class="logo-dot" id="liveDot2"></div>
+    <span id="liveLabel">OFFLINE</span>
+  </div>
+</header>
 
-<h1>Second Pair of Eyes – AI Safety Agent</h1>
+<div class="app">
+  <!-- LEFT -->
+  <div class="left">
+    <div class="vid-wrap">
+      <video id="cam" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="hud">
+        <span class="chip" id="modelBadge">MODEL: —</span>
+        <span class="chip" id="fpsBadge">— FPS</span>
+      </div>
+    </div>
 
-<div class="video-container">
-<video id="cam" autoplay playsinline></video>
-<canvas id="overlay"></canvas>
-</div>
+    <div id="statusBar">
+      <span id="statusIcon">○</span>
+      <span id="statusText">System Ready — Click Start Agent</span>
+    </div>
 
-<div style="margin-top:25px">
-<button id="start">Start Agent</button>
-<button id="stop">Stop</button>
-</div>
+    <div class="metrics">
+      <div class="metric" id="mAI"><label>AI Status</label><div class="val" id="aiVal">Idle</div></div>
+      <div class="metric" id="mRisk"><label>Risk Level</label><div class="val" id="riskVal">LOW</div></div>
+      <div class="metric"><label>Detected</label><div class="val" id="objVal">None</div></div>
+      <div class="metric"><label>Nearest Threat</label><div class="val" id="distVal">—</div></div>
+    </div>
 
-<div id="status" class="status">
-System Ready
-</div>
+    <div class="tl-wrap">
+      <h4>Event Log</h4>
+      <div id="timeline"><div class="tl-entry"><span class="msg" style="color:var(--muted)">Waiting…</span></div></div>
+    </div>
+  </div>
 
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="sec">
+      <div class="g-head">
+        <h4>🤖 Gemini Safety Advice</h4>
+        <span class="g-tag" id="gTag">—</span>
+      </div>
+      <div id="geminiText">Agent not started. Click Start Agent to begin.</div>
+    </div>
+
+    <div class="sec">
+      <h4>⚠ Active Threats</h4>
+      <div id="threatList"><div class="no-t">No threats detected</div></div>
+    </div>
+
+    <div class="sec">
+      <h4>📡 Detection Stats</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="metric"><label>Confidence</label><div class="val" id="confVal">—</div></div>
+        <div class="metric"><label>Backend</label><div class="val" id="backendVal">—</div></div>
+        <div class="metric"><label>Frames</label><div class="val" id="framesVal">0</div></div>
+        <div class="metric"><label>Alerts</label><div class="val" id="alertsVal">0</div></div>
+      </div>
+    </div>
+
+    <div class="ctrl">
+      <button class="btn btn-start" id="btnStart">▶ &nbsp;START AGENT</button>
+      <button class="btn btn-stop"  id="btnStop">■ &nbsp;STOP</button>
+      <button class="btn btn-voice" id="btnVoice">🔊 Test Voice</button>
+    </div>
+
+    <div class="about">
+      <strong>Second Pair of Eyes</strong> — Real-time AI safety agent using
+      <strong>COCO-SSD</strong> + <strong>Gemini</strong> multimodal vision
+      to detect hazards and provide voice-guided safety advice.
+      Built for the <strong>Gemini Live Agent Challenge</strong>.
+    </div>
+  </div>
 </div>
 
 <script>
+// ══════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════
+const DANGEROUS       = new Set(["knife","scissors","fork","baseball bat","gun","bottle","cell phone","remote"])
+const CONF_NORMAL     = 0.45   // threshold for normal objects
+const CONF_DANGER     = 0.35   // lower threshold for dangerous objects
+const DETECT_MS       = 80     // detection interval
+const SPEECH_CD       = 5000
+const WARN_CD         = 4000
+const GEMINI_CD       = 4000   // min ms between Gemini calls
+const FRAME_CD        = 4000   // min ms between frame sends
+const WS_URL          = "ws://127.0.0.1:8000/voice"
 
-let model
-let detectionRunning=false
+const KNOWN_H = {
+  "person":170,"bottle":25,"knife":20,"scissors":15,
+  "cell phone":14,"laptop":30,"chair":80,"cup":10,
+  "fork":18,"remote":15,"baseball bat":86,"gun":20,
+}
+const FOCAL = 615
 
-const video=document.getElementById("cam")
-const canvas=document.getElementById("overlay")
-const ctx=canvas.getContext("2d")
-const status=document.getElementById("status")
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+let ws, cocoModel, camStream
+let running    = false
+let tlEntries  = []
+let lastSpeech = 0, lastWarn = 0, lastGemini = 0, lastFrame = 0
+let lastObjKey = "", lastLogKey = ""
+let frameCount = 0, totalFrames = 0, totalAlerts = 0
+let fpsTimer   = Date.now()
+let speechOK   = false
+let geminiBoxes = [], geminiExpiry = 0
+let thinkTimer = null
 
-async function startCamera(){
+// ══════════════════════════════════════
+//  DOM
+// ══════════════════════════════════════
+const video     = document.getElementById("cam")
+const canvas    = document.getElementById("overlay")
+const ctx       = canvas.getContext("2d")
+const aiVal     = document.getElementById("aiVal")
+const riskVal   = document.getElementById("riskVal")
+const objVal    = document.getElementById("objVal")
+const distVal   = document.getElementById("distVal")
+const statusBar = document.getElementById("statusBar")
+const statusTxt = document.getElementById("statusText")
+const tlPanel   = document.getElementById("timeline")
+const geminiTxt = document.getElementById("geminiText")
+const threatList= document.getElementById("threatList")
+const fpsBadge  = document.getElementById("fpsBadge")
+const modelBadge= document.getElementById("modelBadge")
+const mRisk     = document.getElementById("mRisk")
+const liveDot   = document.getElementById("liveDot")
+const liveDot2  = document.getElementById("liveDot2")
+const liveLabel = document.getElementById("liveLabel")
+const framesVal = document.getElementById("framesVal")
+const alertsVal = document.getElementById("alertsVal")
+const confVal   = document.getElementById("confVal")
+const backendVal= document.getElementById("backendVal")
+const gTag      = document.getElementById("gTag")
 
-const stream=await navigator.mediaDevices.getUserMedia({video:true})
-
-video.srcObject=stream
-
-video.onloadedmetadata=()=>{
-
-canvas.width=video.videoWidth
-canvas.height=video.videoHeight
-
+// ══════════════════════════════════════
+//  SPEECH
+// ══════════════════════════════════════
+function unlockSpeech(){
+  if(speechOK) return
+  const u = new SpeechSynthesisUtterance("")
+  u.volume = 0
+  speechSynthesis.speak(u)
+  speechSynthesis.addEventListener("voiceschanged", ()=>{ speechSynthesis.getVoices() }, {once:true})
+  speechOK = true
 }
 
+function speak(text){
+  if(!text || !speechOK) return
+  const now = Date.now()
+  if(now - lastSpeech < SPEECH_CD) return
+  lastSpeech = now
+  speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(text.slice(0, 200))
+  u.rate = 1.0; u.pitch = 1; u.volume = 1
+  const voices = speechSynthesis.getVoices()
+  const v = voices.find(v=>v.lang==="en-IN")
+          || voices.find(v=>v.lang.startsWith("en") && v.localService)
+          || voices.find(v=>v.lang.startsWith("en"))
+  if(v) u.voice = v
+  speechSynthesis.speak(u)
+  console.log("[Speech] Speaking:", text.slice(0,50), "| voice:", v?.name||"default")
+}
+
+// ══════════════════════════════════════
+//  UI HELPERS
+// ══════════════════════════════════════
+function setLive(on){
+  liveDot.className  = "logo-dot" + (on?" on":"")
+  liveDot2.className = "logo-dot" + (on?" on":"")
+  liveLabel.textContent = on ? "LIVE" : "OFFLINE"
+}
+
+function setStatus(text, alert=false){
+  statusTxt.textContent = text
+  alert ? statusBar.classList.add("alert") : statusBar.classList.remove("alert")
+}
+
+function setRisk(risk){
+  riskVal.textContent = risk
+  mRisk.className = "metric"
+  if(risk==="HIGH")   mRisk.classList.add("high")
+  if(risk==="MEDIUM") mRisk.classList.add("med")
+}
+
+function log(msg, type="normal"){
+  const ts = new Date().toLocaleTimeString()
+  tlEntries.push({ts, msg, type})
+  if(tlEntries.length > 12) tlEntries.shift()
+  tlPanel.innerHTML = tlEntries.map(e=>
+    `<div class="tl-entry ${e.type==="danger"?"danger":e.type==="gemini"?"gemini":""}">
+      <span class="ts">${e.ts}</span><span class="msg">${e.msg}</span>
+    </div>`
+  ).join("")
+  tlPanel.scrollTop = tlPanel.scrollHeight
+}
+
+function showThinking(){
+  geminiTxt.innerHTML = `<div class="thinking">Analyzing<div class="dots"><span></span><span></span><span></span></div></div>`
+  clearTimeout(thinkTimer)
+  thinkTimer = setTimeout(()=>{
+    if(geminiTxt.querySelector(".thinking")) geminiTxt.textContent = "Waiting for next detection…"
+  }, 8000)
+}
+
+function showGemini(text, source){
+  clearTimeout(thinkTimer)
+  geminiTxt.textContent = text
+  gTag.textContent = source || "gemini"
+  aiVal.textContent = "Gemini ✓"
+  log("Gemini: "+text.slice(0,70)+(text.length>70?"…":""), "gemini")
+  speak(text)
+}
+
+function updateThreats(objects, distMap){
+  const threats = objects.filter(o=>DANGEROUS.has(o))
+  if(!threats.length){ threatList.innerHTML='<div class="no-t">No threats detected</div>'; return }
+  threatList.innerHTML = threats.map(t=>{
+    const d = distMap[t]
+    return `<div class="threat-item">
+      <span class="t-name">⚠ ${t}</span>
+      <span class="t-dist">${d?fmtDist(d):"—"}</span>
+    </div>`
+  }).join("")
+}
+
+// ══════════════════════════════════════
+//  DISTANCE
+// ══════════════════════════════════════
+function estDist(label, bboxH){
+  const rH = KNOWN_H[label]
+  if(!rH || bboxH < 8) return null
+  const d = Math.round((rH * FOCAL) / bboxH)
+  return (d<5||d>600) ? null : d
+}
+function fmtDist(cm){ return cm<100 ? `${cm}cm` : `${(cm/100).toFixed(1)}m` }
+
+// ══════════════════════════════════════
+//  RISK
+// ══════════════════════════════════════
+function calcRisk(objects){
+  let s=0
+  if(objects.includes("knife"))        s+=6
+  if(objects.includes("gun"))          s+=9
+  if(objects.includes("scissors"))     s+=4
+  if(objects.includes("baseball bat")) s+=5
+  if(objects.includes("bottle"))       s+=2
+  if(objects.includes("cell phone"))   s+=2
+  if(s>=7) return "HIGH"
+  if(s>=4) return "MEDIUM"
+  return "LOW"
+}
+
+const THREATS = {
+  "gun":          ["⚠ FIREARM DETECTED!",     "Warning! A firearm has been detected!"],
+  "knife":        ["⚠ Knife near person!",    "Warning! Knife detected close to a person."],
+  "scissors":     ["⚠ Scissors near body!",   "Caution! Sharp scissors close to your body."],
+  "baseball bat": ["⚠ Bat near person!",      "Baseball bat detected near a person."],
+  "cell phone":   ["⚠ Phone distraction!",    "Phone distraction detected. Stay focused."],
+}
+
+function checkThreats(objects, distMap){
+  const now = Date.now()
+  if(now - lastWarn < WARN_CD) return
+  if(!objects.includes("person")){ setStatus("Observing scene…"); return }
+  for(const [obj,[sm,sp]] of Object.entries(THREATS)){
+    if(objects.includes(obj)){
+      const d = distMap[obj]
+      const dStr = d ? ` (${fmtDist(d)})` : ""
+      setStatus(sm+dStr, true)
+      speak(sp+(d?` Distance approximately ${fmtDist(d)}.`:""))
+      log(sm+dStr, "danger")
+      totalAlerts++; alertsVal.textContent=totalAlerts
+      lastWarn = now
+      return
+    }
+  }
+  setStatus("Observing scene…")
+}
+
+// ══════════════════════════════════════
+//  DRAWING
+// ══════════════════════════════════════
+function drawBox(x,y,w,h,label,score,dist,isDanger){
+  const color = isDanger?"#ff4444":"#00ffb4"
+  const lbl   = `${label} ${Math.round(score*100)}%`+(dist!==null?` · ${fmtDist(dist)}`:"")
+  if(isDanger){ctx.shadowColor="#ff4444";ctx.shadowBlur=14;}
+  ctx.strokeStyle=color; ctx.lineWidth=isDanger?3:2
+  ctx.strokeRect(x,y,w,h)
+  ctx.shadowBlur=0
+  ctx.font="bold 11px 'JetBrains Mono',monospace"
+  const tw=ctx.measureText(lbl).width+12
+  ctx.fillStyle=color
+  ctx.fillRect(x-1,y-20,tw,18)
+  ctx.fillStyle=isDanger?"#fff":"#080d16"
+  ctx.fillText(lbl,x+5,y-6)
+}
+
+function drawGeminiBox(x,y,w,h,label,conf){
+  const lbl=`🤖 ${label} ${Math.round(conf*100)}%`
+  ctx.shadowColor="#a855f7"; ctx.shadowBlur=16
+  ctx.strokeStyle="#a855f7"; ctx.lineWidth=2.5
+  ctx.setLineDash([8,4]); ctx.strokeRect(x,y,w,h)
+  ctx.setLineDash([]); ctx.shadowBlur=0
+  ctx.font="bold 11px 'JetBrains Mono',monospace"
+  const tw=ctx.measureText(lbl).width+12
+  ctx.fillStyle="#a855f7"; ctx.fillRect(x-1,y-20,tw,18)
+  ctx.fillStyle="#fff"; ctx.fillText(lbl,x+5,y-6)
+}
+
+// ══════════════════════════════════════
+//  DETECTION LOOP
+// ══════════════════════════════════════
+async function detect(){
+  if(!cocoModel||!running) return
+  const preds = await cocoModel.detect(video, 10, CONF_DANGER)
+  ctx.clearRect(0,0,canvas.width,canvas.height)
+
+  const objects=[]; const distMap={}
+  let nearD=null, nearN=null
+
+  preds.forEach(p=>{
+    const isDanger = DANGEROUS.has(p.class)
+    const thresh   = isDanger ? CONF_DANGER : CONF_NORMAL
+    if(p.score < thresh) return
+    const [x,y,w,h]=p.bbox
+    const dist=estDist(p.class,h)
+    drawBox(x,y,w,h,p.class,p.score,dist,isDanger)
+    objects.push(p.class)
+    if(dist!==null) distMap[p.class]=dist
+    if(isDanger&&dist!==null&&(nearD===null||dist<nearD)){nearD=dist;nearN=p.class}
+  })
+
+  // Draw Gemini boxes
+  const now=Date.now()
+  if(now<geminiExpiry && geminiBoxes.length>0){
+    geminiBoxes.forEach(d=>{
+      const [nx,ny,nw,nh]=d.bbox_norm
+      drawGeminiBox(nx*canvas.width,ny*canvas.height,nw*canvas.width,nh*canvas.height,d.label,d.confidence)
+    })
+  } else if(now>=geminiExpiry){ geminiBoxes=[] }
+
+  // FPS
+  frameCount++; totalFrames++
+  framesVal.textContent=totalFrames
+  if(now-fpsTimer>=1000){fpsBadge.textContent=`${frameCount} FPS`;frameCount=0;fpsTimer=now;}
+
+  // UI updates
+  distVal.textContent=(nearN&&nearD!==null)?`${nearN}: ${fmtDist(nearD)}`:"—"
+  objVal.textContent=objects.length?[...new Set(objects)].join(", "):"None"
+  confVal.textContent=objects.length?`${Math.round(preds[0]?.score*100||0)}%`:"—"
+
+  const risk=calcRisk(objects)
+  setRisk(risk)
+  updateThreats([...new Set(objects)],distMap)
+
+  const detKey=[...new Set(objects)].sort().join(",")
+  if(objects.length>0 && detKey!==lastLogKey){
+    lastLogKey=detKey
+    log("Detected: "+[...new Set(objects)].join(", "), risk!=="LOW"?"danger":"normal")
+  }
+
+  checkThreats(objects,distMap)
+  if(risk==="HIGH") speak("High risk detected. Please be careful.")
+
+  // Send to backend — throttled
+  const objKey=[...new Set(objects)].sort().join(",")
+  if(ws&&ws.readyState===WebSocket.OPEN&&objKey!==lastObjKey&&(now-lastGemini)>GEMINI_CD){
+    lastObjKey=objKey; lastGemini=now
+    showThinking()
+    ws.send(JSON.stringify({type:"objects",data:[...new Set(objects)],risk}))
+  }
+
+  // Send frame for Gemini vision
+  if(ws&&ws.readyState===WebSocket.OPEN&&(now-lastFrame)>FRAME_CD){
+    lastFrame=now
+    const off=document.createElement("canvas"); off.width=320; off.height=240
+    off.getContext("2d").drawImage(video,0,0,320,240)
+    const b64=off.toDataURL("image/jpeg",0.7).split(",")[1]
+    ws.send(JSON.stringify({type:"frame",data:b64}))
+  }
+}
+
+async function detectLoop(){
+  while(running){
+    const t0=performance.now()
+    await detect()
+    await new Promise(r=>setTimeout(r,Math.max(0,DETECT_MS-(performance.now()-t0))))
+  }
+}
+
+// ══════════════════════════════════════
+//  CAMERA + MODEL
+// ══════════════════════════════════════
+async function startCamera(){
+  camStream=await navigator.mediaDevices.getUserMedia({
+    video:{width:{ideal:1280},height:{ideal:720},facingMode:"user"},audio:false
+  })
+  video.srcObject=camStream
+  await new Promise(resolve=>{
+    video.onloadedmetadata=()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;resolve()}
+  })
 }
 
 async function loadModel(){
+  setStatus("Setting up GPU backend…")
+  for(const b of ["webgl","cpu"]){
+    try{await tf.setBackend(b);await tf.ready();break}catch(e){}
+  }
+  backendVal.textContent=tf.getBackend().toUpperCase()
 
-model=await cocoSsd.load()
-
-console.log("Model loaded")
-
+  // Try mobilenet_v2 first (better accuracy), then lite as fallback
+  for(const base of ["mobilenet_v2","lite_mobilenet_v2",undefined]){
+    try{
+      const label=base||"default"
+      setStatus(`Loading model [${label}]… please wait`)
+      aiVal.textContent=`Loading…`
+      cocoModel=await Promise.race([
+        cocoSsd.load(base?{base}:{}),
+        new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),28000))
+      ])
+      // Warm-up
+      const wc=document.createElement("canvas");wc.width=300;wc.height=300
+      const d=tf.browser.fromPixels(wc);await cocoModel.detect(d);d.dispose()
+      modelBadge.textContent=`MODEL: ${label.toUpperCase()}`
+      aiVal.textContent="Ready"
+      setStatus("Agent active — observing scene")
+      return true
+    }catch(e){
+      console.warn("Model failed:",base,e.message)
+      cocoModel=null
+    }
+  }
+  setStatus("Model failed to load — check internet", true)
+  aiVal.textContent="Failed"
+  return false
 }
 
-function drawBox(x,y,w,h,label){
-
-ctx.strokeStyle="red"
-ctx.lineWidth=3
-ctx.strokeRect(x,y,w,h)
-
-ctx.fillStyle="red"
-ctx.font="16px Arial"
-ctx.fillText(label,x,y-5)
-
+// ══════════════════════════════════════
+//  WEBSOCKET
+// ══════════════════════════════════════
+function handleMsg(raw){
+  const text=(raw||"").trim()
+  if(!text) return
+  let msg=null
+  try{msg=JSON.parse(text)}catch(e){}
+  if(msg){
+    const t=(msg.text||"").trim()
+    if(msg.type==="advice"){
+      if(!t||t.includes("unavailable")) return
+      showGemini(t, msg.source||"gemini")
+      return
+    }
+    if(msg.type==="vision"){
+      if(!t||t.includes("clear")||t.includes("safe")) return
+      showGemini(t,"gemini-vision")
+      const lower=t.toLowerCase()
+      if(lower.includes("knife")||lower.includes("danger")||lower.includes("sharp")||lower.includes("weapon"))
+        setStatus("⚠ Gemini Vision detected a hazard!",true)
+      return
+    }
+    if(msg.type==="gemini_detections"){
+      geminiBoxes=msg.detections||[]
+      geminiExpiry=Date.now()+4000
+      if(geminiBoxes.length>0){
+        const labels=geminiBoxes.map(d=>d.label)
+        log("👁 Gemini sees: "+labels.join(", "),"gemini")
+        aiVal.textContent="Vision ✓"
+        if(labels.some(l=>["knife","scissors","gun","baseball bat"].includes(l))){
+          setStatus(`⚠ Gemini Vision detected: ${labels.join(", ")}!`,true)
+          speak(`Warning! Gemini detected ${labels[0]} in the scene.`)
+        }
+      }
+      return
+    }
+    if(msg.type==="interrupt"&&t) speak(t)
+    return
+  }
+  // Plain text fallback
+  if(text==="Observing…"||text==="Observing...") return
+  if(!text.includes("unavailable")&&!text.includes("⚠")) showGemini(text,"gemini")
 }
 
-async function detectObjects(){
+// ══════════════════════════════════════
+//  START / STOP
+// ══════════════════════════════════════
+document.getElementById("btnStart").onclick=async()=>{
+  unlockSpeech()
+  setStatus("Connecting to backend…")
 
-if(!model || !detectionRunning) return
+  ws=new WebSocket(WS_URL)
+  ws.onmessage=e=>handleMsg(e.data)
+  ws.onerror=()=>setStatus("WebSocket error — is uvicorn running on port 8000?",true)
+  ws.onclose=()=>{if(running){setStatus("Backend disconnected",true);setLive(false)}}
 
-const predictions=await model.detect(video)
-
-ctx.clearRect(0,0,canvas.width,canvas.height)
-
-predictions.forEach(p=>{
-
-drawBox(p.bbox[0],p.bbox[1],p.bbox[2],p.bbox[3],p.class)
-
-})
-
+  ws.onopen=async()=>{
+    setLive(true)
+    aiVal.textContent="Connected"
+    setStatus("Starting camera…")
+    await startCamera()
+    const ok=await loadModel()
+    if(!ok) return
+    running=true
+    detectLoop()
+    log("Agent started — multimodal vision active","gemini")
+    speak("Second Pair of Eyes is now active and monitoring your environment.")
+  }
 }
 
-async function detectionLoop(){
-
-while(detectionRunning){
-
-await detectObjects()
-
-await new Promise(r=>setTimeout(r,200))
-
+document.getElementById("btnStop").onclick=()=>{
+  running=false
+  if(ws){ws.close();ws=null}
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}
+  ctx.clearRect(0,0,canvas.width,canvas.height)
+  setStatus("Agent stopped"); setLive(false)
+  aiVal.textContent="Stopped"; geminiTxt.textContent="—"
+  setRisk("LOW"); objVal.textContent="None"; distVal.textContent="—"
+  threatList.innerHTML='<div class="no-t">No threats detected</div>'
+  log("Agent stopped"); speechSynthesis.cancel()
 }
 
+document.getElementById("btnVoice").onclick=()=>{
+  unlockSpeech()
+  speechSynthesis.cancel()
+  const u=new SpeechSynthesisUtterance("Second Pair of Eyes voice test. Audio is working correctly.")
+  u.rate=1;u.pitch=1;u.volume=1
+  const voices=speechSynthesis.getVoices()
+  const v=voices.find(v=>v.lang==="en-IN")||voices.find(v=>v.lang.startsWith("en"))
+  if(v) u.voice=v
+  speechSynthesis.speak(u)
+  console.log("[Voice Test] Voices available:",voices.length,"| Using:",v?.name||"default")
 }
-
-document.getElementById("start").onclick=async()=>{
-
-status.innerText="Starting..."
-
-await startCamera()
-
-await loadModel()
-
-detectionRunning=true
-
-detectionLoop()
-
-}
-
-document.getElementById("stop").onclick=()=>{
-
-detectionRunning=false
-
-status.innerText="Agent stopped"
-
-}
-
 </script>
-
 </body>
 </html>
